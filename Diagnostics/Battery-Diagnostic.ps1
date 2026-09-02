@@ -1,5 +1,7 @@
 # =====================================================================
 # BATTERY DETAILED DIAGNOSTIC TOOL
+# Mode    : Read-Only Audit
+# Purpose : Assess battery health, wear level, cycle count, and provide recommendations
 # =====================================================================
 
 Write-Host "=== BATTERY DETAILED DIAGNOSTIC ===" -ForegroundColor Cyan
