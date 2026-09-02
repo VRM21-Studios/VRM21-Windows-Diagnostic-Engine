@@ -1,5 +1,7 @@
 # =====================================================================
 # STORAGE DETAILED DIAGNOSTIC TOOL
+# Mode    : Read-Only Audit
+# Purpose : Assess storage health, performance, and optimization recommendations
 # =====================================================================
 
 Write-Host "=== STORAGE DETAILED DIAGNOSTIC ===" -ForegroundColor Cyan
