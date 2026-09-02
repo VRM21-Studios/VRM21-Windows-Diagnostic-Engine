@@ -1,5 +1,6 @@
 # =====================================================================
 # SECURITY DETAILED DIAGNOSTIC TOOL
+# Mode    : Read-Only Audit
 # =====================================================================
 
 Write-Host "=== SECURITY DETAILED DIAGNOSTIC ===" -ForegroundColor Cyan
