@@ -1,67 +1,94 @@
-# =====================================================================
-# NETWORK DETAILED DIAGNOSTIC TOOL - WITH TUNING AUDIT
-# =====================================================================
+# ======================================================================
+# Network Detailed Diagnostic Tool - Tuning Audit
+# Mode    : Read-Only Audit
+# Purpose : Analyze network adapters, TCP/IP tuning, NIC properties,
+#           connection statistics, wireless status, and network health.
+# ======================================================================
 
 Write-Host "=== NETWORK DETAILED DIAGNOSTIC & TUNING AUDIT ===" -ForegroundColor Cyan
 
-# 1. NETWORK ADAPTERS COMPREHENSIVE INFO
+# ----------------------------------------------------------------------
+# 1. Network Adapters - Comprehensive Information
+# ----------------------------------------------------------------------
 Write-Host "`n[1] NETWORK ADAPTERS DETAILED INFORMATION" -ForegroundColor Yellow
 
-# Active adapters dengan info lengkap
+# Active network adapters
 Write-Host "`n[a] ACTIVE NETWORK ADAPTERS:" -ForegroundColor White
-$ActiveAdapters = Get-NetAdapter | Where-Object {$_.Status -eq "Up"}
+
+$ActiveAdapters = Get-NetAdapter | Where-Object {
+    $_.Status -eq "Up"
+}
+
 if ($ActiveAdapters) {
-    $ActiveAdapters | Select-Object Name, InterfaceDescription, LinkSpeed, Status, 
-        @{Name="MacAddress";Expression={$_.MacAddress}} | Format-Table -AutoSize
-} else {
+    $ActiveAdapters |
+        Select-Object Name, InterfaceDescription, LinkSpeed, Status,
+            @{Name="MacAddress"; Expression={$_.MacAddress}} |
+        Format-Table -AutoSize
+}
+else {
     Write-Host "No active network adapters found" -ForegroundColor Red
 }
 
-# DNS Settings untuk semua adapter
+# DNS server configuration
 Write-Host "`n[b] DNS SERVER CONFIGURATION:" -ForegroundColor White
-$DNSSettings = Get-DnsClientServerAddress | Where-Object {$_.ServerAddresses}
+
+$DNSSettings = Get-DnsClientServerAddress | Where-Object {
+    $_.ServerAddresses
+}
+
 if ($DNSSettings) {
-    $DNSSettings | Select-Object InterfaceAlias, ServerAddresses | Format-Table -AutoSize
-} else {
+    $DNSSettings |
+        Select-Object InterfaceAlias, ServerAddresses |
+        Format-Table -AutoSize
+}
+else {
     Write-Host "No DNS servers configured" -ForegroundColor Yellow
 }
 
-# 2. TCP/IP STACK TUNING AUDIT
+# ----------------------------------------------------------------------
+# 2. TCP/IP Stack Tuning Audit
+# ----------------------------------------------------------------------
 Write-Host "`n[2] TCP/IP STACK TUNING AUDIT" -ForegroundColor Yellow
 
 $TCPGlobal = netsh int tcp show global
+
 Write-Host "Current TCP Global Settings:" -ForegroundColor Cyan
 
 $TuningChecks = @{
     "ECN Capability" = @{
-        Pattern = "ECN Capability\s*:\s*enabled"
+        Pattern     = "ECN Capability\s*:\s*enabled"
         Recommended = "enabled"
         Description = "Explicit Congestion Notification"
     }
+
     "RFC 1323 Timestamps" = @{
-        Pattern = "RFC 1323 Timestamps\s*:\s*enabled" 
+        Pattern     = "RFC 1323 Timestamps\s*:\s*enabled"
         Recommended = "enabled"
-        Description = "TCP timestamps for better RTT estimation"
+        Description = "TCP timestamps for RTT estimation"
     }
+
     "Receive Window Auto-Tuning" = @{
-        Pattern = "Receive Window Auto-Tuning Level\s*:\s*normal"
-        Recommended = "normal" 
-        Description = "Auto-tuning for better throughput"
+        Pattern     = "Receive Window Auto-Tuning Level\s*:\s*normal"
+        Recommended = "normal"
+        Description = "Automatic receive-window tuning for throughput"
     }
+
     "Receive Segment Coalescing" = @{
-        Pattern = "Receive Segment Coalescing State\s*:\s*disabled"
+        Pattern     = "Receive Segment Coalescing State\s*:\s*disabled"
         Recommended = "disabled"
-        Description = "RSC - better disabled for low latency"
+        Description = "RSC configuration used by this tuning profile"
     }
+
     "Receive-Side Scaling" = @{
-        Pattern = "Receive-Side Scaling State\s*:\s*enabled"
+        Pattern     = "Receive-Side Scaling State\s*:\s*enabled"
         Recommended = "enabled"
-        Description = "RSS - enables multi-core processing"
+        Description = "RSS enables multi-core network processing"
     }
+
     "Congestion Control" = @{
-        Pattern = "Congestion Control Provider\s*:\s*ctcp"
+        Pattern     = "Congestion Control Provider\s*:\s*ctcp"
         Recommended = "ctcp"
-        Description = "Compound TCP for high-speed networks"
+        Description = "Compound TCP for the selected tuning profile"
     }
 }
 
@@ -71,167 +98,317 @@ $TuningIssues = @()
 foreach ($Check in $TuningChecks.GetEnumerator()) {
     $Key = $Check.Key
     $Config = $Check.Value
-    
+
     if ($TCPGlobal -match $Config.Pattern) {
         Write-Host "[OK]   $Key : $($Config.Recommended)" -ForegroundColor Green
         Write-Host "       $($Config.Description)" -ForegroundColor Gray
-    } else {
+    }
+    else {
         Write-Host "[WARN] $Key : Not $($Config.Recommended)" -ForegroundColor Red
         Write-Host "       $($Config.Description)" -ForegroundColor Gray
+
         $TuningScore -= 15
         $TuningIssues += "$Key should be $($Config.Recommended)"
     }
 }
 
-Write-Host "`nTCP Tuning Score: $TuningScore/100" -ForegroundColor $(if($TuningScore -ge 80){"Green"}elseif($TuningScore -ge 60){"Yellow"}else{"Red"})
+Write-Host "`nTCP Tuning Score: $TuningScore/100" -ForegroundColor $(
+    if ($TuningScore -ge 80) {
+        "Green"
+    }
+    elseif ($TuningScore -ge 60) {
+        "Yellow"
+    }
+    else {
+        "Red"
+    }
+)
 
-# 3. NIC ADVANCED PROPERTIES AUDIT
+# ----------------------------------------------------------------------
+# 3. NIC Advanced Properties Audit
+# ----------------------------------------------------------------------
 Write-Host "`n[3] NIC ADVANCED PROPERTIES AUDIT" -ForegroundColor Yellow
 
-# Cari adapter Ethernet utama
+# Select the first active Ethernet adapter matching the known descriptions.
 $EthernetAdapter = Get-NetAdapter | Where-Object {
-    $_.InterfaceDescription -match "Ethernet|Gigabit|ASIX" -and $_.Status -eq "Up"
+    $_.InterfaceDescription -match "Ethernet|Gigabit|ASIX" -and
+    $_.Status -eq "Up"
 } | Select-Object -First 1
 
 if ($EthernetAdapter) {
     Write-Host "Auditing adapter: $($EthernetAdapter.Name)" -ForegroundColor Cyan
-    
-    $AdvancedProps = Get-NetAdapterAdvancedProperty -Name $EthernetAdapter.Name -ErrorAction SilentlyContinue
+
+    $AdvancedProps = Get-NetAdapterAdvancedProperty `
+        -Name $EthernetAdapter.Name `
+        -ErrorAction SilentlyContinue
+
     if ($AdvancedProps) {
         Write-Host "`nAll Advanced Properties:" -ForegroundColor White
-        $AdvancedProps | Select-Object DisplayName, DisplayValue, RegistryKeyword | Format-Table -AutoSize
-        
+
+        $AdvancedProps |
+            Select-Object DisplayName, DisplayValue, RegistryKeyword |
+            Format-Table -AutoSize
+
         # Important tuning parameters
         Write-Host "`n--- IMPORTANT TUNING PARAMETERS ---" -ForegroundColor Cyan
-        
+
         $CriticalSettings = @(
-            @{Name="Interrupt Moderation Rate"; Optimal="High"; Description="Reduces CPU usage for packet processing"},
-            @{Name="Green Ethernet"; Optimal="Disabled"; Description="Saves power but may reduce performance"},
-            @{Name="Flow Control"; Optimal="Rx & Tx Enabled"; Description="Prevents packet loss on congested networks"},
-            @{Name="Jumbo Packet"; Optimal="Disabled"; Description="MTU size - typically best disabled"},
-            @{Name="Receive Side Scaling"; Optimal="Enabled"; Description="Enables multi-core network processing"},
-            @{Name="Receive Buffers"; Optimal="1024+"; Description="Higher values better for high throughput"}
+            @{
+                Name        = "Interrupt Moderation Rate"
+                Optimal     = "High"
+                Description = "Reduces CPU overhead for packet processing"
+            },
+            @{
+                Name        = "Green Ethernet"
+                Optimal     = "Disabled"
+                Description = "Power-saving feature that may affect performance"
+            },
+            @{
+                Name        = "Flow Control"
+                Optimal     = "Rx & Tx Enabled"
+                Description = "Helps manage packet flow on congested networks"
+            },
+            @{
+                Name        = "Jumbo Packet"
+                Optimal     = "Disabled"
+                Description = "MTU configuration; typically disabled unless required"
+            },
+            @{
+                Name        = "Receive Side Scaling"
+                Optimal     = "Enabled"
+                Description = "Enables multi-core network processing"
+            },
+            @{
+                Name        = "Receive Buffers"
+                Optimal     = "1024+"
+                Description = "Higher values can support high-throughput workloads"
+            }
         )
-        
+
         foreach ($Setting in $CriticalSettings) {
-            $Prop = $AdvancedProps | Where-Object {$_.DisplayName -eq $Setting.Name}
+            $Prop = $AdvancedProps | Where-Object {
+                $_.DisplayName -eq $Setting.Name
+            }
+
             if ($Prop) {
-                $Status = if ($Prop.DisplayValue -eq $Setting.Optimal -or 
-                             ($Setting.Name -eq "Receive Buffers" -and [int]$Prop.DisplayValue -ge 1024)) {
+                $Status = if (
+                    $Prop.DisplayValue -eq $Setting.Optimal -or
+                    (
+                        $Setting.Name -eq "Receive Buffers" -and
+                        [int]$Prop.DisplayValue -ge 1024
+                    )
+                ) {
                     "OK"
-                } else {
+                }
+                else {
                     "WARN"
                 }
-                
-                $Color = if ($Status -eq "OK") { "Green" } else { "Yellow" }
+
+                $Color = if ($Status -eq "OK") {
+                    "Green"
+                }
+                else {
+                    "Yellow"
+                }
+
                 Write-Host "[$Status] $($Setting.Name) : $($Prop.DisplayValue)" -ForegroundColor $Color
                 Write-Host "        Optimal: $($Setting.Optimal) - $($Setting.Description)" -ForegroundColor Gray
             }
         }
-        
-        # Highlight specific values dari skrip lama Anda
-        $Moderation = ($AdvancedProps | Where-Object {$_.DisplayName -match "Interrupt Moderation"}).DisplayValue
-        $GreenEth = ($AdvancedProps | Where-Object {$_.DisplayName -match "Green Ethernet"}).DisplayValue
-        
-        Write-Host "`n--- YOUR CURRENT TUNING ---" -ForegroundColor Cyan
+
+        # Display selected current tuning values.
+        $Moderation = (
+            $AdvancedProps |
+            Where-Object { $_.DisplayName -match "Interrupt Moderation" }
+        ).DisplayValue
+
+        $GreenEth = (
+            $AdvancedProps |
+            Where-Object { $_.DisplayName -match "Green Ethernet" }
+        ).DisplayValue
+
+        Write-Host "`n--- CURRENT TUNING ---" -ForegroundColor Cyan
         Write-Host "Interrupt Moderation Rate : $Moderation" -ForegroundColor White
         Write-Host "Green Ethernet            : $GreenEth" -ForegroundColor White
-        
-    } else {
+    }
+    else {
         Write-Host "No advanced properties available for this adapter" -ForegroundColor Yellow
     }
-} else {
+}
+else {
     Write-Host "No active Ethernet adapter found for advanced properties audit" -ForegroundColor Yellow
 }
 
-# 4. NETWORK PERFORMANCE MONITORING
+# ----------------------------------------------------------------------
+# 4. Network Performance and Statistics
+# ----------------------------------------------------------------------
 Write-Host "`n[4] NETWORK PERFORMANCE & STATISTICS" -ForegroundColor Yellow
 
 # Adapter statistics
 Write-Host "`n[a] NETWORK ADAPTER STATISTICS:" -ForegroundColor White
-$AdapterStats = Get-NetAdapterStatistics | Where-Object {$_.ReceivedBytes -gt 0 -or $_.SentBytes -gt 0}
-if ($AdapterStats) {
-    $AdapterStats | Select-Object Name,
-        @{Name="Received(MB)"; Expression={[math]::Round($_.ReceivedBytes/1MB, 2)}},
-        @{Name="Sent(MB)"; Expression={[math]::Round($_.SentBytes/1MB, 2)}},
-        @{Name="ReceivedPackets"; Expression={$_.ReceivedUnicastPackets}},
-        @{Name="SentPackets"; Expression={$_.SentUnicastPackets}},
-        @{Name="Errors"; Expression={$_.ReceivedErrors + $_.SentErrors}} | Format-Table -AutoSize
+
+$AdapterStats = Get-NetAdapterStatistics | Where-Object {
+    $_.ReceivedBytes -gt 0 -or $_.SentBytes -gt 0
 }
 
-# Active connections analysis
+if ($AdapterStats) {
+    $AdapterStats |
+        Select-Object Name,
+            @{Name="Received(MB)"; Expression={[math]::Round($_.ReceivedBytes / 1MB, 2)}},
+            @{Name="Sent(MB)"; Expression={[math]::Round($_.SentBytes / 1MB, 2)}},
+            @{Name="ReceivedPackets"; Expression={$_.ReceivedUnicastPackets}},
+            @{Name="SentPackets"; Expression={$_.SentUnicastPackets}},
+            @{Name="Errors"; Expression={$_.ReceivedErrors + $_.SentErrors}} |
+        Format-Table -AutoSize
+}
+
+# Active TCP connections
 Write-Host "`n[b] ACTIVE NETWORK CONNECTIONS ANALYSIS:" -ForegroundColor White
-$Connections = Get-NetTCPConnection | Where-Object {$_.State -eq "Established"} | 
+
+$Connections = Get-NetTCPConnection |
+    Where-Object { $_.State -eq "Established" } |
     Group-Object OwningProcess
 
 if ($Connections) {
-    $ConnectionSummary = $Connections | ForEach-Object {
-        $Process = Get-Process -Id $_.Name -ErrorAction SilentlyContinue
-        [PSCustomObject]@{
-            ProcessName = if($Process){$Process.ProcessName}else{"Unknown"}
-            ProcessId = $_.Name
-            Connections = $_.Count
-            RemotePorts = ($_.Group.RemotePort | Sort-Object -Unique | Select-Object -First 3) -join ", "
-        }
-    } | Sort-Object Connections -Descending | Select-Object -First 10
-    
+    $ConnectionSummary = $Connections |
+        ForEach-Object {
+            $Process = Get-Process -Id $_.Name -ErrorAction SilentlyContinue
+
+            [PSCustomObject]@{
+                ProcessName = if ($Process) {
+                    $Process.ProcessName
+                }
+                else {
+                    "Unknown"
+                }
+
+                ProcessId = $_.Name
+                Connections = $_.Count
+                RemotePorts = (
+                    $_.Group.RemotePort |
+                    Sort-Object -Unique |
+                    Select-Object -First 3
+                ) -join ", "
+            }
+        } |
+        Sort-Object Connections -Descending |
+        Select-Object -First 10
+
     $ConnectionSummary | Format-Table -AutoSize
-    
-    # High connection alert
-    $HighConnections = $ConnectionSummary | Where-Object {$_.Connections -gt 20}
+
+    # High connection count alert
+    $HighConnections = $ConnectionSummary |
+        Where-Object { $_.Connections -gt 20 }
+
     if ($HighConnections) {
         Write-Host "  High connection count detected:" -ForegroundColor Yellow
         $HighConnections | Format-Table -AutoSize
     }
-} else {
+}
+else {
     Write-Host "No established connections" -ForegroundColor Gray
 }
 
-# 5. WIRELESS NETWORK AUDIT (jika ada)
+# ----------------------------------------------------------------------
+# 5. Wireless Network Audit
+# ----------------------------------------------------------------------
 Write-Host "`n[5] WIRELESS NETWORK AUDIT" -ForegroundColor Yellow
 
 try {
     $WifiInfo = netsh wlan show interfaces | Out-String
+
     if ($WifiInfo -match "SSID") {
         Write-Host "Wireless Adapter Information:" -ForegroundColor White
-        
-        # Extract important WiFi info
-        $SSID = if ($WifiInfo -match "SSID\s*:\s*(.+)") { $Matches[1].Trim() } else { "Not connected" }
-        $Signal = if ($WifiInfo -match "Signal\s*:\s*(\d+)%") { "$($Matches[1])%" } else { "Unknown" }
-        $Radio = if ($WifiInfo -match "Radio type\s*:\s*(.+)") { $Matches[1].Trim() } else { "Unknown" }
-        $Channel = if ($WifiInfo -match "Channel\s*:\s*(\d+)") { $Matches[1] } else { "Unknown" }
-        $ReceiveRate = if ($WifiInfo -match "Receive rate \(Mbps\)\s*:\s*(\d+)") { "$($Matches[1]) Mbps" } else { "Unknown" }
-        $TransmitRate = if ($WifiInfo -match "Transmit rate \(Mbps\)\s*:\s*(\d+)") { "$($Matches[1]) Mbps" } else { "Unknown" }
-        
+
+        # Extract selected Wi-Fi information.
+        $SSID = if ($WifiInfo -match "SSID\s*:\s*(.+)") {
+            $Matches[1].Trim()
+        }
+        else {
+            "Not connected"
+        }
+
+        $Signal = if ($WifiInfo -match "Signal\s*:\s*(\d+)%") {
+            "$($Matches[1])%"
+        }
+        else {
+            "Unknown"
+        }
+
+        $Radio = if ($WifiInfo -match "Radio type\s*:\s*(.+)") {
+            $Matches[1].Trim()
+        }
+        else {
+            "Unknown"
+        }
+
+        $Channel = if ($WifiInfo -match "Channel\s*:\s*(\d+)") {
+            $Matches[1]
+        }
+        else {
+            "Unknown"
+        }
+
+        $ReceiveRate = if ($WifiInfo -match "Receive rate \(Mbps\)\s*:\s*(\d+)") {
+            "$($Matches[1]) Mbps"
+        }
+        else {
+            "Unknown"
+        }
+
+        $TransmitRate = if ($WifiInfo -match "Transmit rate \(Mbps\)\s*:\s*(\d+)") {
+            "$($Matches[1]) Mbps"
+        }
+        else {
+            "Unknown"
+        }
+
         Write-Host "  SSID         : $SSID" -ForegroundColor Cyan
-        Write-Host "  Signal       : $Signal" -ForegroundColor $(if($Signal -match "(\d+)%" -and $Matches[1] -gt 70){"Green"}elseif($Matches[1] -gt 50){"Yellow"}else{"Red"})
+
+        Write-Host "  Signal       : $Signal" -ForegroundColor $(
+            if ($Signal -match "(\d+)%" -and $Matches[1] -gt 70) {
+                "Green"
+            }
+            elseif ($Matches[1] -gt 50) {
+                "Yellow"
+            }
+            else {
+                "Red"
+            }
+        )
+
         Write-Host "  Radio Type   : $Radio"
         Write-Host "  Channel      : $Channel"
         Write-Host "  Receive Rate : $ReceiveRate"
         Write-Host "  Transmit Rate: $TransmitRate"
-    } else {
+    }
+    else {
         Write-Host "No wireless adapters connected" -ForegroundColor Gray
     }
-} catch {
+}
+catch {
     Write-Host "Wireless information unavailable" -ForegroundColor Gray
 }
 
-# 6. NETWORK TUNING RECOMMENDATIONS
+# ----------------------------------------------------------------------
+# 6. Network Tuning Recommendations
+# ----------------------------------------------------------------------
 Write-Host "`n[6] NETWORK TUNING RECOMMENDATIONS" -ForegroundColor Yellow
 
 if ($TuningIssues) {
     Write-Host " RECOMMENDED TCP TUNING FIXES:" -ForegroundColor Cyan
+
     foreach ($Issue in $TuningIssues) {
         Write-Host "   • $Issue" -ForegroundColor White
     }
-    
+
     Write-Host "`n QUICK TUNING COMMANDS (Run as Admin):" -ForegroundColor Cyan
     Write-Host "   netsh int tcp set global autotuninglevel=normal" -ForegroundColor White
     Write-Host "   netsh int tcp set global rsc=disabled" -ForegroundColor White
     Write-Host "   netsh int tcp set global congestionprovider=ctcp" -ForegroundColor White
 }
 
-# Performance tips berdasarkan findings
+# Gigabit Ethernet recommendations
 if ($EthernetAdapter -and $EthernetAdapter.LinkSpeed -match "1 Gbps") {
     Write-Host "`n GIGABIT ETHERNET OPTIMIZATION:" -ForegroundColor Cyan
     Write-Host "   • Ensure Jumbo Frames are disabled unless specifically configured" -ForegroundColor White
@@ -239,17 +416,20 @@ if ($EthernetAdapter -and $EthernetAdapter.LinkSpeed -match "1 Gbps") {
     Write-Host "   • Check switch/router for any port limitations" -ForegroundColor White
 }
 
+# Wi-Fi signal recommendations
 if ($WifiInfo -and $Signal -match "(\d+)%" -and $Matches[1] -lt 70) {
     Write-Host "`n WIFI SIGNAL OPTIMIZATION:" -ForegroundColor Cyan
-    Write-Host "   • Consider moving closer to access point" -ForegroundColor White
+    Write-Host "   • Consider moving closer to the access point" -ForegroundColor White
     Write-Host "   • Check for interference from other devices" -ForegroundColor White
-    Write-Host "   • Try different WiFi channels" -ForegroundColor White
+    Write-Host "   • Try different Wi-Fi channels" -ForegroundColor White
 }
 
-# 7. FINAL NETWORK HEALTH SUMMARY
-Write-Host "`n" + "="*60 -ForegroundColor Cyan
+# ----------------------------------------------------------------------
+# 7. Final Network Health Summary
+# ----------------------------------------------------------------------
+Write-Host "`n" + "=" * 60 -ForegroundColor Cyan
 Write-Host " NETWORK HEALTH SUMMARY" -ForegroundColor Cyan
-Write-Host "="*60 -ForegroundColor Cyan
+Write-Host "=" * 60 -ForegroundColor Cyan
 
 $NetworkHealthScore = 100
 
@@ -271,32 +451,47 @@ if ($HighConnections) {
 
 # Display final score
 Write-Host "`n NETWORK HEALTH SCORE: $NetworkHealthScore/100" -ForegroundColor $(
-    if ($NetworkHealthScore -ge 80) { "Green" } 
-    elseif ($NetworkHealthScore -ge 60) { "Yellow" } 
-    else { "Red" }
+    if ($NetworkHealthScore -ge 80) {
+        "Green"
+    }
+    elseif ($NetworkHealthScore -ge 60) {
+        "Yellow"
+    }
+    else {
+        "Red"
+    }
 )
 
 if ($NetworkHealthScore -ge 80) {
     Write-Host " EXCELLENT! Network configuration is well-tuned!" -ForegroundColor Green
-} elseif ($NetworkHealthScore -ge 60) {
+}
+elseif ($NetworkHealthScore -ge 60) {
     Write-Host "  GOOD! Some network optimizations possible." -ForegroundColor Yellow
-} else {
+}
+else {
     Write-Host " ATTENTION NEEDED! Network issues detected." -ForegroundColor Red
 }
 
 Write-Host "`n=== NETWORK DIAGNOSTIC COMPLETE ===" -ForegroundColor Cyan
 
-# =====================================================================
-# 8. JSON EXPORT FOR PYTHON / LLM INTEGRATION
-# =====================================================================
-$ActiveAdaptersCount = if ($null -ne $ActiveAdapters) { @($ActiveAdapters).Count } else { 0 }
+# ======================================================================
+# 8. JSON Export for Python / LLM Integration
+# ======================================================================
+
+$ActiveAdaptersCount = if ($null -ne $ActiveAdapters) {
+    @($ActiveAdapters).Count
+}
+else {
+    0
+}
 
 $HighConnList = @()
+
 if ($null -ne $HighConnections) {
     foreach ($hc in $HighConnections) {
-        $HighConnList += [ordered]@{ 
+        $HighConnList += [ordered]@{
             "Process"     = $hc.ProcessName
-            "Connections" = $hc.Connections 
+            "Connections" = $hc.Connections
         }
     }
 }
@@ -306,13 +501,29 @@ $DiagnosticResult = [ordered]@{
     "TcpTuningScore"      = $TuningScore
     "ActiveAdaptersCount" = $ActiveAdaptersCount
     "TuningIssues"        = $TuningIssues
-    "IsWifiConnected"     = if ($WifiInfo -match "SSID" -and $SSID -ne "Not connected") { $true } else { $false }
-    "WifiSignalPct"       = if ($Signal -match "(\d+)%") { [int]$Matches[1] } else { 0 }
+    "IsWifiConnected"     = if (
+        $WifiInfo -match "SSID" -and
+        $SSID -ne "Not connected"
+    ) {
+        $true
+    }
+    else {
+        $false
+    }
+
+    "WifiSignalPct" = if ($Signal -match "(\d+)%") {
+        [int]$Matches[1]
+    }
+    else {
+        0
+    }
+
     "HighConnectionProcs" = $HighConnList
 }
 
-# Convert to JSON and output it as a pure string
+# Convert the diagnostic result to compact JSON.
 $JsonOutput = $DiagnosticResult | ConvertTo-Json -Depth 3 -Compress
+
 Write-Output "---JSON_START---"
 Write-Output $JsonOutput
 Write-Output "---JSON_END---"
