@@ -1,4 +1,3 @@
-```python
 import sys
 import shutil
 import subprocess
@@ -242,4 +241,3 @@ if __name__ == "__main__":
     win = AuditGUI()
     win.show()
     sys.exit(app.exec())
-```
