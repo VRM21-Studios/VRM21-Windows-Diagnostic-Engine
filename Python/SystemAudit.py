@@ -1,4 +1,3 @@
-```python
 import argparse
 import subprocess
 import datetime
@@ -226,4 +225,3 @@ def main():
 # ==========================================================
 if __name__ == "__main__":
     main()
-```
