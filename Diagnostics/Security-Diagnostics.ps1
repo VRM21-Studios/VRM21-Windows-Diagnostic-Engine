@@ -1,6 +1,7 @@
 # =====================================================================
 # SECURITY DETAILED DIAGNOSTIC TOOL
 # Mode    : Read-Only Audit
+# Purpose: Comprehensive security assessment for Windows systems
 # =====================================================================
 
 Write-Host "=== SECURITY DETAILED DIAGNOSTIC ===" -ForegroundColor Cyan
