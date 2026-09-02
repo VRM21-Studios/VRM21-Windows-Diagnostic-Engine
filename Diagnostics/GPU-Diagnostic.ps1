@@ -1,20 +1,27 @@
 # ======================================================================
-# GPU Detailed Diagnostic Tool
+# GPU Detailed Diagnostic
+# Version : 1.0
+# Mode    : Read-Only Audit
+# Purpose : Collect GPU hardware, display, performance, thermal, and
+#           graphics-process information
 # ======================================================================
 
-Write-Host "=== GPU DETAILED DIAGNOSTIC ===" -ForegroundColor Cyan
+Write-Host "===================================================="
+Write-Host " GPU DETAILED DIAGNOSTIC"
+Write-Host "====================================================`n"
 
 # ======================================================================
 # 1. GPU HARDWARE INFORMATION
 # ======================================================================
-Write-Host "`n[1] GPU HARDWARE INFORMATION" -ForegroundColor Yellow
+Write-Host "[1] GPU HARDWARE INFORMATION" -ForegroundColor Yellow
 
 $GPUs = Get-CimInstance Win32_VideoController | Where-Object {
-    $_.Name -notlike "*Remote*" -and $_.Name -notlike "*Microsoft*"
+    $_.Name -notlike "*Remote*" -and
+    $_.Name -notlike "*Microsoft*"
 }
 
 if (-not $GPUs) {
-    Write-Host "No supported GPUs detected" -ForegroundColor Yellow
+    Write-Host "No dedicated GPUs detected." -ForegroundColor Yellow
 } else {
     foreach ($GPU in $GPUs) {
         Write-Host "`nGPU: $($GPU.Name)" -ForegroundColor White
@@ -24,13 +31,15 @@ if (-not $GPUs) {
         Write-Host "  Video Processor: $($GPU.VideoProcessor)"
 
         # Current display information.
-        if ($GPU.CurrentHorizontalResolution -and $GPU.CurrentVerticalResolution) {
+        if ($GPU.CurrentHorizontalResolution -and
+            $GPU.CurrentVerticalResolution) {
+
             Write-Host "  Resolution     : $($GPU.CurrentHorizontalResolution)x$($GPU.CurrentVerticalResolution)"
             Write-Host "  Refresh Rate   : $($GPU.CurrentRefreshRate) Hz"
             Write-Host "  Bits/Pixel     : $($GPU.CurrentBitsPerPixel)"
         }
 
-        # Basic integrated/dedicated classification.
+        # Classify the adapter as integrated or dedicated graphics.
         if ($GPU.Name -match "Intel|HD Graphics|UHD Graphics") {
             Write-Host "  Type           : Integrated Graphics" -ForegroundColor Blue
         } else {
@@ -46,7 +55,9 @@ Write-Host "`n[2] GPU PERFORMANCE COUNTERS" -ForegroundColor Yellow
 
 try {
     # GPU engine utilization.
-    $GPUUsage = Get-Counter "\GPU Engine(*)\Utilization Percentage" -ErrorAction SilentlyContinue
+    $GPUUsage = Get-Counter `
+        "\GPU Engine(*)\Utilization Percentage" `
+        -ErrorAction SilentlyContinue
 
     if ($GPUUsage) {
         $ActiveGPUs = $GPUUsage.CounterSamples |
@@ -54,23 +65,31 @@ try {
             Group-Object { $_.InstanceName.Split('_')[0] }
 
         if ($ActiveGPUs) {
-            Write-Host "Active GPU Engines:" -ForegroundColor White
+            Write-Host "Active GPU engines:" -ForegroundColor White
 
             foreach ($GPU in $ActiveGPUs) {
-                $MaxUsage = ($GPU.Group | Measure-Object -Property CookedValue -Maximum).Maximum
+                $MaxUsage = (
+                    $GPU.Group |
+                    Measure-Object -Property CookedValue -Maximum
+                ).Maximum
 
-                Write-Host "  $($GPU.Name): $([math]::Round($MaxUsage, 1))% usage" -ForegroundColor $(
-                    if ($MaxUsage -gt 80) { "Red" }
-                    elseif ($MaxUsage -gt 50) { "Yellow" }
-                    else { "Green" }
-                )
+                Write-Host "  $($GPU.Name): $([math]::Round($MaxUsage, 1))% usage" `
+                    -ForegroundColor $(
+                        if ($MaxUsage -gt 80) {
+                            "Red"
+                        } elseif ($MaxUsage -gt 50) {
+                            "Yellow"
+                        } else {
+                            "Green"
+                        }
+                    )
             }
         } else {
-            Write-Host "No active GPU usage detected" -ForegroundColor Gray
+            Write-Host "No active GPU usage detected." -ForegroundColor Gray
         }
     }
 } catch {
-    Write-Host "GPU performance counters unavailable" -ForegroundColor Gray
+    Write-Host "GPU performance counters unavailable." -ForegroundColor Gray
 }
 
 # ======================================================================
@@ -79,7 +98,8 @@ try {
 Write-Host "`n[3] GRAPHICS-INTENSIVE PROCESSES" -ForegroundColor Yellow
 
 $GraphicsProcesses = Get-Process | Where-Object {
-    $_.ProcessName -match "chrome|firefox|edge|opera|photoshop|premiere|afterfx|illustrator|indesign|davinci|blender|maya|3ds|unity|unreal|steam|epic|battle.net|origin|riot|valorant|csgo|dota|lol|overwatch|fortnite|minecraft|javaw|python|matlab"
+    $_.ProcessName -match `
+        "chrome|firefox|edge|opera|photoshop|premiere|afterfx|illustrator|indesign|davinci|blender|maya|3ds|unity|unreal|steam|epic|battle.net|origin|riot|valorant|csgo|dota|lol|overwatch|fortnite|minecraft|javaw|python|matlab"
 } |
     Sort-Object WorkingSet -Descending |
     Select-Object -First 15
@@ -89,10 +109,12 @@ if ($GraphicsProcesses) {
 
     $GraphicsProcesses |
         Format-Table ProcessName, Id,
-            @{Name="Memory(MB)"; Expression={[math]::Round($_.WorkingSet / 1MB, 2)}},
-            CPU -AutoSize
+        @{Name = "Memory(MB)"; Expression = {
+            [math]::Round($_.WorkingSet / 1MB, 2)
+        }},
+        CPU -AutoSize
 } else {
-    Write-Host "No graphics-intensive processes detected" -ForegroundColor Green
+    Write-Host "No graphics-intensive processes detected." -ForegroundColor Green
 }
 
 # ======================================================================
@@ -110,10 +132,10 @@ if ($Displays) {
             Write-Host "  Native Resolution: $($Display.ScreenWidth)x$($Display.ScreenHeight)"
         }
 
-        Write-Host "  PNP Device ID: $($Display.PNPDeviceID)"
+        Write-Host "  PNP Device ID    : $($Display.PNPDeviceID)"
     }
 } else {
-    Write-Host "No display information available" -ForegroundColor Gray
+    Write-Host "No display information available." -ForegroundColor Gray
 }
 
 # ======================================================================
@@ -122,29 +144,34 @@ if ($Displays) {
 Write-Host "`n[5] DIRECTX INFORMATION" -ForegroundColor Yellow
 
 try {
-    $DXDiag = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\DirectX" -ErrorAction SilentlyContinue
+    $DXDiag = Get-ItemProperty `
+        "HKLM:\SOFTWARE\Microsoft\DirectX" `
+        -ErrorAction SilentlyContinue
 
     if ($DXDiag) {
-        Write-Host "DirectX installation information detected" -ForegroundColor Green
+        Write-Host "DirectX Version: Installed" -ForegroundColor Green
     }
 
-    # Check for DirectX-related registry information.
-    $FeatureLevels = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\DirectX\*" -ErrorAction SilentlyContinue
+    # Check for DirectX-related feature-level information.
+    $FeatureLevels = Get-ItemProperty `
+        "HKLM:\SOFTWARE\Microsoft\DirectX\*" `
+        -ErrorAction SilentlyContinue
 
     if ($FeatureLevels) {
-        Write-Host "DirectX-related feature information detected" -ForegroundColor Green
+        Write-Host "Feature Levels Available" -ForegroundColor Green
     }
 } catch {
-    Write-Host "DirectX information is limited" -ForegroundColor Gray
+    Write-Host "DirectX information limited." -ForegroundColor Gray
 }
 
 # ======================================================================
 # 6. GPU TEMPERATURE AND HEALTH
 # ======================================================================
-Write-Host "`n[6] GPU TEMPERATURE & HEALTH" -ForegroundColor Yellow
+Write-Host "`n[6] GPU TEMPERATURE AND HEALTH" -ForegroundColor Yellow
 
 try {
-    # Attempt to retrieve GPU temperature information from common WMI namespaces.
+    # Attempt to retrieve GPU temperature information from
+    # several WMI/CIM namespaces.
     $TempSources = @(
         "\\.\ROOT\CIMV2",
         "\\.\ROOT\WMI",
@@ -162,18 +189,16 @@ try {
 
             if ($Temperatures) {
                 foreach ($Temp in $Temperatures) {
-                    if ($Temp.Name -match "GPU" -or $Temp.Description -match "GPU") {
+                    if ($Temp.Name -match "GPU" -or
+                        $Temp.Description -match "GPU") {
 
-                        $CurrentTemp =
-                            if ($Temp.CurrentTemperature) {
-                                $Temp.CurrentTemperature
-                            }
-                            elseif ($Temp.Temperature) {
-                                $Temp.Temperature
-                            }
-                            else {
-                                $null
-                            }
+                        $CurrentTemp = if ($Temp.CurrentTemperature) {
+                            $Temp.CurrentTemperature
+                        } elseif ($Temp.Temperature) {
+                            $Temp.Temperature
+                        } else {
+                            $null
+                        }
 
                         if ($CurrentTemp) {
                             # Preserve the original temperature handling.
@@ -183,11 +208,16 @@ try {
                                 $CurrentTemp
                             }
 
-                            Write-Host "GPU Temperature: $([math]::Round($TempC, 1))°C" -ForegroundColor $(
-                                if ($TempC -gt 85) { "Red" }
-                                elseif ($TempC -gt 75) { "Yellow" }
-                                else { "Green" }
-                            )
+                            Write-Host "GPU Temperature: $([math]::Round($TempC, 1))°C" `
+                                -ForegroundColor $(
+                                    if ($TempC -gt 85) {
+                                        "Red"
+                                    } elseif ($TempC -gt 75) {
+                                        "Yellow"
+                                    } else {
+                                        "Green"
+                                    }
+                                )
 
                             $TempFound = $true
                             break
@@ -200,16 +230,17 @@ try {
                 break
             }
         } catch {
-            # Continue with the next namespace.
+            # Continue with the next temperature namespace.
         }
     }
 
     if (-not $TempFound) {
-        Write-Host "GPU temperature data not available" -ForegroundColor Gray
-        Write-Host "  Use manufacturer tools (NVIDIA/AMD/Intel) for detailed monitoring" -ForegroundColor White
+        Write-Host "GPU temperature data not available." -ForegroundColor Gray
+        Write-Host "  Use manufacturer tools (NVIDIA/AMD/Intel) for detailed monitoring." `
+            -ForegroundColor White
     }
 } catch {
-    Write-Host "Temperature monitoring unavailable" -ForegroundColor Gray
+    Write-Host "Temperature monitoring unavailable." -ForegroundColor Gray
 }
 
 # ======================================================================
@@ -226,28 +257,34 @@ $IntegratedGPUs = $GPUs | Where-Object {
 }
 
 if ($DedicatedGPUs) {
-    Write-Host "Dedicated GPU detected" -ForegroundColor Green
-    Write-Host "  - Ensure drivers are up to date" -ForegroundColor White
-    Write-Host "  - Use NVIDIA Control Panel/AMD Software for optimization" -ForegroundColor White
+    Write-Host "Dedicated GPU detected." -ForegroundColor Green
+    Write-Host "  - Ensure GPU drivers are up to date." -ForegroundColor White
+    Write-Host "  - Use NVIDIA Control Panel or AMD Software for optimization." `
+        -ForegroundColor White
 }
 
 if ($IntegratedGPUs -and $DedicatedGPUs) {
-    Write-Host "Hybrid graphics system detected" -ForegroundColor Cyan
-    Write-Host "  - Use graphics settings to assign applications to the dedicated GPU" -ForegroundColor White
-    Write-Host "  - Check power settings for GPU switching" -ForegroundColor White
+    Write-Host "Hybrid graphics system detected." -ForegroundColor Cyan
+    Write-Host "  - Use graphics settings to assign applications to the dedicated GPU." `
+        -ForegroundColor White
+    Write-Host "  - Check power settings for GPU switching." -ForegroundColor White
 }
 
 if ($IntegratedGPUs -and -not $DedicatedGPUs) {
-    Write-Host "Integrated graphics only" -ForegroundColor Blue
-    Write-Host "  - Optimize for power efficiency" -ForegroundColor White
-    Write-Host "  - Close unnecessary background applications during gaming" -ForegroundColor White
+    Write-Host "Integrated graphics only." -ForegroundColor Blue
+    Write-Host "  - Optimize for power efficiency." -ForegroundColor White
+    Write-Host "  - Close unnecessary background applications for gaming." `
+        -ForegroundColor White
 }
 
 # VRAM usage check.
 foreach ($GPU in $GPUs) {
     if ($GPU.AdapterRAM -lt 2GB) {
-        Write-Host "  Low VRAM: $([math]::Round($GPU.AdapterRAM / 1GB, 1)) GB" -ForegroundColor Yellow
-        Write-Host "  - Consider lowering texture quality in graphics-intensive applications" -ForegroundColor White
+        Write-Host "  Low VRAM: $([math]::Round($GPU.AdapterRAM / 1GB, 1)) GB" `
+            -ForegroundColor Yellow
+
+        Write-Host "  - Consider lowering texture quality in games." `
+            -ForegroundColor White
     }
 }
 
@@ -256,6 +293,7 @@ Write-Host "`n=== GPU DIAGNOSTIC COMPLETE ===" -ForegroundColor Cyan
 # ======================================================================
 # 8. JSON EXPORT FOR PYTHON / LLM INTEGRATION
 # ======================================================================
+
 $GPUList = @()
 
 if ($GPUs) {
@@ -263,7 +301,9 @@ if ($GPUs) {
         $GPUList += [ordered]@{
             "Name"        = $G.Name
             "VRAM_GB"     = [math]::Round($G.AdapterRAM / 1GB, 2)
-            "IsDedicated" = if ($G.Name -match "Intel|HD Graphics|UHD Graphics|Radeon Graphics") {
+            "IsDedicated" = if (
+                $G.Name -match "Intel|HD Graphics|UHD Graphics|Radeon Graphics"
+            ) {
                 $false
             } else {
                 $true
@@ -275,7 +315,8 @@ if ($GPUs) {
 $GraphicsProcs = @()
 
 if ($GraphicsProcesses) {
-    # Limit the JSON output to the top five processes.
+    # Limit the JSON process list to the top five entries
+    # to keep downstream LLM context compact.
     $TopProcs = $GraphicsProcesses | Select-Object -First 5
 
     foreach ($P in $TopProcs) {
@@ -292,8 +333,9 @@ $DiagnosticResult = [ordered]@{
     "GraphicsIntensiveProcesses" = $GraphicsProcs
 }
 
-# Convert to JSON and output it as a pure string.
-$JsonOutput = $DiagnosticResult | ConvertTo-Json -Depth 3 -Compress
+# Convert the diagnostic result to a compact JSON string.
+$JsonOutput = $DiagnosticResult |
+    ConvertTo-Json -Depth 3 -Compress
 
 Write-Output "---JSON_START---"
 Write-Output $JsonOutput
