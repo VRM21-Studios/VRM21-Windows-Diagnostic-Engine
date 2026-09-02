@@ -1,5 +1,7 @@
 # =====================================================================
 # SERVICE AND BLOATWARE DETAILED DIAGNOSTIC TOOL
+# Mode    : Read-Only Audit
+# Purpose : Identify unnecessary services, bloatware, and startup clutter
 # =====================================================================
 
 Write-Host "=== SERVICE AND BLOATWARE DETAILED DIAGNOSTIC ===" -ForegroundColor Cyan
