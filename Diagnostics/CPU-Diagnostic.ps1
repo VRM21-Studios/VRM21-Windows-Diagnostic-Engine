@@ -1,5 +1,7 @@
 # =====================================================================
 # CPU DETAILED DIAGNOSTIC TOOL
+# Mode    : Read-Only Audit
+# Purpose : Assess CPU performance, health, and provide recommendations
 # =====================================================================
 
 Write-Host "=== CPU DETAILED DIAGNOSTIC ===" -ForegroundColor Cyan
